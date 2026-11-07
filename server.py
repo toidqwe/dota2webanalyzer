@@ -86,14 +86,14 @@ def fetch_opendota(match_id: int, force: bool = False) -> dict:
             raw = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
-            raise AnalysisError("OpenDota ограничил частоту запросов. Подождите минуту или добавьте OPENDOTA_API_KEY.", 429) from exc
+            raise AnalysisError("Сервис ограничил частоту запросов. Подождите минуту и повторите.", 429) from exc
         if exc.code == 404:
-            raise AnalysisError("Матч не найден на OpenDota. Проверьте ID.", 404) from exc
-        raise AnalysisError(f"OpenDota вернул ошибку {exc.code}. Попробуйте позже.", 502) from exc
+            raise AnalysisError("Матч не найден. Проверьте ID.", 404) from exc
+        raise AnalysisError(f"Сервис матчей вернул ошибку {exc.code}. Попробуйте позже.", 502) from exc
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        raise AnalysisError("Не удалось связаться с OpenDota. Проверьте интернет.", 502) from exc
+        raise AnalysisError("Не удалось связаться с сервисом матчей. Проверьте интернет.", 502) from exc
     if not isinstance(raw, dict) or not raw.get("match_id"):
-        raise AnalysisError("OpenDota не вернул матч. Проверьте ID.", 404)
+        raise AnalysisError("Сервис не вернул матч. Проверьте ID.", 404)
     write_json(cached, raw)
     return raw
 
@@ -228,7 +228,7 @@ def _replay_worker(match_id: int) -> None:
             raw = fetch_opendota(match_id, force=False)
         players = raw.get("players") or []
         if players and players[0].get("gold_t") and not force:
-            _set_job(match_id, stage="stats", progress=82, message="OpenDota уже распарсила матч — считаем статистику")
+            _set_job(match_id, stage="stats", progress=82, message="Матч уже распарсен — считаем статистику")
             analysis = analyze_match(raw)
             _finish_job(match_id, raw, analysis)
             return
@@ -236,7 +236,7 @@ def _replay_worker(match_id: int) -> None:
         replay_url = _normalize_replay_url(raw.get("replay_url") or "")
         if not replay_url:
             raise AnalysisError(
-                "OpenDota не отдала ссылку на реплей: скорее всего, Valve уже удалила файл. "
+                "Сервис не отдал ссылку на реплей: скорее всего, Valve уже удалила файл. "
                 "Реплеи хранятся ограниченное время, обычно около недели.",
                 409,
                 code="no_replay",
@@ -479,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
                 if isinstance(raw, dict) and isinstance(raw.get("match"), dict) and "players" not in raw:
                     raw = raw["match"]
                 if not isinstance(raw, dict) or "players" not in raw:
-                    self._error("Это не JSON матча OpenDota: нет поля players", 400)
+                    self._error("Это не JSON матча: нет поля players", 400)
                     return
                 analysis = analyze_raw(raw)
                 self._json({"ok": True, "analysis": analysis, "cached": False})

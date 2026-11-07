@@ -15,6 +15,7 @@
     pollTimer: 0,
     elapsedTimer: 0,
     replayId: null,
+    lastMatchId: null,
     progressStartedAt: 0,
   };
 
@@ -36,6 +37,19 @@
   const API_BASE = String(window.OTA_API_BASE || "").replace(/\/$/, "");
   const HAS_API = Boolean(API_BASE);
   const apiUrl = (path) => (HAS_API ? API_BASE + path : path);
+
+  async function fetchWithRetry(url, options, attempts = 2) {
+    let lastError;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await fetch(url, options);
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+    throw new Error("Не удалось связаться с сервером. Если он только что запускался — подождите 30–60 секунд и нажмите «Повторить».");
+  }
 
   function initials(name) {
     return String(name || "?").replace(/[^A-Za-zА-Яа-я0-9]/g, "").slice(0, 2).toUpperCase() || "?";
@@ -880,14 +894,16 @@
     window.scrollTo({ top: 0 });
   }
 
-  function showError(message) {
+  function showError(message, retryId) {
     stopPolling();
     hideProgress();
+    state.lastMatchId = retryId || null;
     $("#landing").hidden = true;
     $("#loading").hidden = true;
     $("#report").hidden = true;
     $("#error-panel").hidden = false;
     $("#error-text").textContent = message || "Неизвестная ошибка";
+    $("#error-retry").hidden = !retryId;
     window.scrollTo({ top: 0 });
   }
 
@@ -969,7 +985,7 @@
     state.pollFailures = 0;
     showProgress({ status: "queued", stage: "queued", progress: 2, message: "Запускаем локальный парсер реплея", elapsed: 0 });
     try {
-      const response = await fetch(apiUrl("/api/replay"), {
+      const response = await fetchWithRetry(apiUrl("/api/replay"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -1045,7 +1061,7 @@
     try {
       const useBackend = !STATIC || HAS_API;
       const url = useBackend ? apiUrl(`/api/analyze?id=${encodeURIComponent(id)}`) : `data/matches/${id}.json`;
-      const response = await fetch(url);
+      const response = await fetchWithRetry(url, undefined, 2);
       if (!useBackend && !response.ok) {
         throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
       }
@@ -1062,7 +1078,7 @@
       }
       setData(payload.analysis, { hash: `#match=${id}` });
     } catch (error) {
-      showError(error.message);
+      showError(error.message, id);
     }
   }
 
@@ -1185,6 +1201,9 @@
       history.replaceState(null, "", location.pathname);
       showLanding();
     });
+    $("#error-retry").addEventListener("click", () => {
+      if (state.lastMatchId) loadMatch(state.lastMatchId);
+    });
     $("#progress-back").addEventListener("click", () => {
       stopPolling();
       history.replaceState(null, "", location.pathname);
@@ -1210,6 +1229,10 @@
         note.innerHTML = "<b>GitHub Pages + API.</b> Полный разбор по ID доступен: сайт отправляет матч на облачный парсер.";
       }
     }
+  }
+  if (HAS_API) {
+    // Fire-and-forget warmup: free cloud instances wake up faster after this.
+    fetch(apiUrl("/api/health")).catch(() => {});
   }
   bindChrome();
   loadHistory();
