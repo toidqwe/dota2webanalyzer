@@ -1,0 +1,8 @@
+.git
+.gitignore
+data/cache
+data/replays
+docs
+__pycache__
+*.pyc
+shot_*.png

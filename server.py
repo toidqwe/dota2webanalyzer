@@ -358,6 +358,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", cache)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         if encoding:
             self.send_header("Content-Encoding", encoding)
         self.end_headers()
@@ -382,6 +385,14 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(length)
 
     # -------------------------------------------------------------------- routes
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -504,14 +515,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    port = 8765
+    port = int(os.environ.get("PORT", "8765"))
     for arg in sys.argv[1:]:
         if arg.isdigit():
             port = int(arg)
-    host = "127.0.0.1"
+    host = os.environ.get("HOST", "0.0.0.0")
     httpd = ThreadingHTTPServer((host, port), Handler)
     httpd.daemon_threads = True
-    print(f"OTA server: http://{host}:{port}")
+    print(f"OTA server: http://127.0.0.1:{port} (bind {host})")
     print(f"Demo match: /api/demo")
     try:
         httpd.serve_forever()

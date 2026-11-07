@@ -1,5 +1,6 @@
 """Build the static GitHub Pages demo from the live analyzer."""
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -59,6 +60,12 @@ def main():
         '<script src="charts.js"></script>',
         '<script>window.OTA_STATIC = true;</script>\n  <script src="charts.js"></script>',
     )
+    api_base = os.environ.get("OTA_API_BASE", "").strip().rstrip("/")
+    if api_base:
+        html = html.replace(
+            '<script>window.OTA_STATIC = true;</script>',
+            f'<script>window.OTA_STATIC = true; window.OTA_API_BASE = {json.dumps(api_base)};</script>',
+        )
     (DOCS / "index.html").write_text(html, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
 

@@ -28,9 +28,33 @@
 Статическая демо-версия: **https://toidqwe.github.io/dota2webanalyzer/**
 
 На Pages доступны готовые разборы `9078468447`, `9078923915`, `9074607307`.
-Полный парс нового матча по ID, загрузка JSON и локальный парсер работают только при запуске сервера из этого репозитория.
+Полный парс нового матча по ID, загрузка JSON и локальный парсер требуют Python-бэкенда: GitHub Pages умеет отдавать только статические файлы.
 
-Сборка страницы:
+### Полная версия с парсером
+
+1. Задеплойте бэкенд на Render одной кнопкой:
+
+   https://render.com/deploy?repo=https://github.com/toidqwe/dota2webanalyzer
+
+   В репозитории уже есть `Dockerfile` и `render.yaml`. Для парсинга 40-минутного реплея лучше брать план с 1–2 ГБ RAM: бесплатные 512 МБ могут не хватить.
+
+2. Получите URL сервиса, например `https://ota-api.onrender.com`.
+
+3. Укажите адрес API и пересоберите Pages:
+
+   ```powershell
+   $env:OTA_API_BASE = "https://ota-api.onrender.com"
+   python tools/build_pages.py
+   git add docs
+   git commit -m "Point Pages at API backend"
+   git push
+   ```
+
+4. Проверьте бэкенд: `https://ota-api.onrender.com/api/health` — должен вернуть `{"ok": true}`.
+
+После этого сайт на Pages принимает любой ID: фронтенд шлёт запрос на бэкенд, тот скачивает и парсит реплей.
+
+### Сборка страницы
 
 ```powershell
 python tools/build_pages.py

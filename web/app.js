@@ -33,6 +33,9 @@
 
   const TEAM = { radiant: "Radiant", dire: "Dire" };
   const STATIC = Boolean(window.OTA_STATIC);
+  const API_BASE = String(window.OTA_API_BASE || "").replace(/\/$/, "");
+  const HAS_API = Boolean(API_BASE);
+  const apiUrl = (path) => (HAS_API ? API_BASE + path : path);
 
   function initials(name) {
     return String(name || "?").replace(/[^A-Za-zА-Яа-я0-9]/g, "").slice(0, 2).toUpperCase() || "?";
@@ -957,7 +960,7 @@
   }
 
   async function startReplay(id) {
-    if (STATIC) {
+    if (STATIC && !HAS_API) {
       showError("Это статическая демонстрация на GitHub Pages. Полный разбор по ID с загрузкой реплея работает при локальном запуске сервера.");
       return;
     }
@@ -966,7 +969,7 @@
     state.pollFailures = 0;
     showProgress({ status: "queued", stage: "queued", progress: 2, message: "Запускаем локальный парсер реплея", elapsed: 0 });
     try {
-      const response = await fetch("/api/replay", {
+      const response = await fetch(apiUrl("/api/replay"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -983,7 +986,7 @@
   function pollReplay(id) {
     const poll = async () => {
       try {
-        const response = await fetch(`/api/replay/${id}`);
+        const response = await fetch(apiUrl(`/api/replay/${id}`));
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.error || "Задача парса не найдена");
         const job = payload.job;
@@ -1024,7 +1027,7 @@
   async function loadDemo(updateHash) {
     showLoading();
     try {
-      const response = await fetch(STATIC ? "data/demo.json" : "/api/demo");
+      const response = await fetch(STATIC ? "data/demo.json" : apiUrl("/api/demo"));
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Не удалось загрузить демо");
       setData(payload.analysis, { hash: updateHash === false ? null : "#demo" });
@@ -1040,15 +1043,16 @@
     }
     showLoading();
     try {
-      const url = STATIC ? `data/matches/${id}.json` : `/api/analyze?id=${encodeURIComponent(id)}`;
+      const useBackend = !STATIC || HAS_API;
+      const url = useBackend ? apiUrl(`/api/analyze?id=${encodeURIComponent(id)}`) : `data/matches/${id}.json`;
       const response = await fetch(url);
-      if (STATIC && !response.ok) {
+      if (!useBackend && !response.ok) {
         throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
       }
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
-        if (STATIC) {
-          throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
+        if (!useBackend) {
+          throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307.");
         }
         if (payload.code === "unparsed") {
           await startReplay(id);
@@ -1064,7 +1068,7 @@
 
   async function loadFile(file) {
     if (!file) return;
-    if (STATIC) {
+    if (STATIC && !HAS_API) {
       showError("В статической версии на GitHub Pages загрузка JSON недоступна. Запустите сервер локально для полного разбора.");
       return;
     }
@@ -1075,7 +1079,7 @@
     showLoading();
     try {
       const text = await file.text();
-      const response = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: text });
+      const response = await fetch(apiUrl("/api/analyze"), { method: "POST", headers: { "Content-Type": "application/json" }, body: text });
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Не удалось разобрать файл");
       setData(payload.analysis, { hash: `#match=${payload.analysis.match.id}` });
@@ -1089,7 +1093,7 @@
 
   async function loadHistory() {
     try {
-      const response = await fetch(STATIC ? "data/history.json" : "/api/history");
+      const response = await fetch(STATIC && !HAS_API ? "data/history.json" : apiUrl("/api/history"));
       const payload = await response.json();
       const items = (payload.items || []).slice(0, 4);
       const block = $("#history-block");
@@ -1200,7 +1204,12 @@
 
   if (STATIC) {
     const note = $("#static-note");
-    if (note) note.hidden = false;
+    if (note) {
+      note.hidden = false;
+      if (HAS_API) {
+        note.innerHTML = "<b>GitHub Pages + API.</b> Полный разбор по ID доступен: сайт отправляет матч на облачный парсер.";
+      }
+    }
   }
   bindChrome();
   loadHistory();
