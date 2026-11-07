@@ -40,15 +40,13 @@
 
 2. Получите URL сервиса, например `https://ota-api.onrender.com`.
 
-3. Укажите адрес API и пересоберите Pages:
+3. Откройте в репозитории файл `docs/config.js` и укажите адрес:
 
-   ```powershell
-   $env:OTA_API_BASE = "https://ota-api.onrender.com"
-   python tools/build_pages.py
-   git add docs
-   git commit -m "Point Pages at API backend"
-   git push
+   ```js
+   window.OTA_API_BASE = "https://ota-api.onrender.com";
    ```
+
+   GitHub Pages подхватит изменение после коммита, пересобирать вручную не нужно.
 
 4. Проверьте бэкенд: `https://ota-api.onrender.com/api/health` — должен вернуть `{"ok": true}`.
 

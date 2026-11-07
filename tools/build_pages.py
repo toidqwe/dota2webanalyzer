@@ -58,14 +58,12 @@ def main():
     html = html.replace('src="/app.js"', 'src="app.js"')
     html = html.replace(
         '<script src="charts.js"></script>',
-        '<script>window.OTA_STATIC = true;</script>\n  <script src="charts.js"></script>',
+        '<script>window.OTA_STATIC = true;</script>\n  <script src="config.js"></script>\n  <script src="charts.js"></script>',
     )
     api_base = os.environ.get("OTA_API_BASE", "").strip().rstrip("/")
-    if api_base:
-        html = html.replace(
-            '<script>window.OTA_STATIC = true;</script>',
-            f'<script>window.OTA_STATIC = true; window.OTA_API_BASE = {json.dumps(api_base)};</script>',
-        )
+    (DOCS / "config.js").write_text(
+        f"window.OTA_API_BASE = {json.dumps(api_base)};\n", encoding="utf-8"
+    )
     (DOCS / "index.html").write_text(html, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
 
