@@ -25,6 +25,12 @@ CACHE.mkdir(parents=True, exist_ok=True)
 REPLAYS.mkdir(parents=True, exist_ok=True)
 ENGINE_VERSION = 10
 KEEP_REPLAYS = os.environ.get("KEEP_REPLAYS", "").strip() in ("1", "true", "yes")
+# На бесплатном Render (512 МБ RAM, слабый CPU) локальный парсер gem-dota не справляется:
+# процесс убивается по памяти, а задача теряется. Поэтому там парс делает OpenDota.
+# Принудительно включить локальный парс: OTA_LOCAL_PARSE=1, выключить: OTA_LOCAL_PARSE=0.
+_local_env = os.environ.get("OTA_LOCAL_PARSE", "").strip().lower()
+USE_LOCAL_PARSE = (_local_env in ("1", "true", "yes")) if _local_env else not os.environ.get("RENDER")
+ODOTA_WAIT_SECONDS = int(os.environ.get("OTA_ODOTA_WAIT", "900"))
 
 sys.path.insert(0, str(ROOT))
 from analyzer import AnalysisError, analyze_match  # noqa: E402
@@ -211,6 +217,58 @@ def _normalize_replay_url(url: str) -> str:
     return url
 
 
+def _is_parsed(raw: dict) -> bool:
+    players = raw.get("players") or []
+    return bool(players and players[0].get("gold_t"))
+
+
+def _request_opendota_parse(match_id: int) -> None:
+    """Просим OpenDota распарсить реплей у себя (POST /request/{id}). Ошибки не критичны."""
+    request = urllib.request.Request(
+        f"https://api.opendota.com/api/request/{match_id}",
+        data=b"",
+        method="POST",
+        headers={
+            "User-Agent": "ota-replay-analyst/1.0",
+            **({"Authorization": f"Bearer {API_KEY}"} if API_KEY else {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            response.read()
+    except Exception as exc:  # noqa: BLE001 - повторим попытку при опросе
+        sys.stderr.write(f"opendota parse request failed: {exc!r}\n")
+
+
+def _wait_opendota_parse(match_id: int) -> dict | None:
+    """Ждём, пока OpenDota распарсит матч. Возвращает сырой матч или None по таймауту."""
+    _request_opendota_parse(match_id)
+    started = time.time()
+    last_request = started
+    while time.time() - started < ODOTA_WAIT_SECONDS:
+        time.sleep(10)
+        elapsed = time.time() - started
+        progress = min(80, 15 + int(65 * elapsed / ODOTA_WAIT_SECONDS))
+        _set_job(
+            match_id,
+            stage="parse",
+            progress=progress,
+            message="Реплей разбирает внешний сервис — обычно 1–5 минут",
+        )
+        try:
+            raw = fetch_opendota(match_id, force=True)
+        except AnalysisError as exc:
+            if exc.status == 404:
+                raise
+            continue  # 429/5xx: пробуем на следующем круге
+        if _is_parsed(raw):
+            return raw
+        if time.time() - last_request > 120:  # напоминаем о запросе
+            _request_opendota_parse(match_id)
+            last_request = time.time()
+    return None
+
+
 def _replay_worker(match_id: int) -> None:
     replay_path: Path | None = None
     try:
@@ -231,6 +289,20 @@ def _replay_worker(match_id: int) -> None:
             _set_job(match_id, stage="stats", progress=82, message="Матч уже распарсен — считаем статистику")
             analysis = analyze_match(raw)
             _finish_job(match_id, raw, analysis)
+            return
+
+        if not USE_LOCAL_PARSE:
+            _set_job(match_id, stage="parse", progress=15, message="Просим внешний сервис разобрать реплей")
+            parsed_raw = _wait_opendota_parse(match_id)
+            if parsed_raw is None:
+                raise AnalysisError(
+                    "Реплей не удалось разобрать за отведённое время. Возможно, Valve уже удалила файл "
+                    "(реплеи хранятся около недели) или очередь перегружена. Попробуйте позже или другой матч.",
+                    504,
+                    code="parse_timeout",
+                )
+            _set_job(match_id, stage="stats", progress=85, message="Считаем статистику")
+            _finish_job(match_id, parsed_raw, analyze_match(parsed_raw))
             return
 
         replay_url = _normalize_replay_url(raw.get("replay_url") or "")
@@ -421,6 +493,11 @@ class Handler(BaseHTTPRequestHandler):
                     self._error("Укажите корректный ID матча", 400)
                     return
                 job = _job_public(int(match_id), with_analysis=True)
+                if not job:
+                    # Сервер мог перезапуститься (Render free), и задача потерялась —
+                    # запускаем её заново, чтобы страница не зависала.
+                    start_replay_job(int(match_id))
+                    job = _job_public(int(match_id), with_analysis=True)
                 if not job:
                     self._error("Задача парса не найдена", 404, "no_job")
                     return
