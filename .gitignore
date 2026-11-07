@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/cache/
+data/replays/
+shot_*.png
+crop_*.png
+node_modules/

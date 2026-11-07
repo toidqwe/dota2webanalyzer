@@ -1,0 +1,2 @@
+# Local Dota 2 replay parser (pure Python; brings pandas/numpy/protobuf)
+gem-dota>=0.14,<0.15
