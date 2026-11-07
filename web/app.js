@@ -38,17 +38,21 @@
   const HAS_API = Boolean(API_BASE);
   const apiUrl = (path) => (HAS_API ? API_BASE + path : path);
 
-  async function fetchWithRetry(url, options, attempts = 2) {
+  async function fetchWithRetry(url, options, attempts = 3) {
     let lastError;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         return await fetch(url, options);
       } catch (error) {
         lastError = error;
-        if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 1200));
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1500 : 6000));
+        }
       }
     }
-    throw new Error("Не удалось связаться с сервером. Если он только что запускался — подождите 30–60 секунд и нажмите «Повторить».");
+    throw new Error(
+      "Не удалось связаться с сервером. Если он только что запускался — подождите 30–60 секунд и нажмите «Повторить»."
+    );
   }
 
   function initials(name) {
@@ -1061,7 +1065,7 @@
     try {
       const useBackend = !STATIC || HAS_API;
       const url = useBackend ? apiUrl(`/api/analyze?id=${encodeURIComponent(id)}`) : `data/matches/${id}.json`;
-      const response = await fetchWithRetry(url, undefined, 2);
+      const response = await fetchWithRetry(url, undefined, 3);
       if (!useBackend && !response.ok) {
         throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
       }
