@@ -7,7 +7,7 @@
   <title>OTA — разбор матчей Dota 2: виновники, ошибки, переломные моменты</title>
   <meta name="description" content="Анализ распарсенного реплея Dota 2: индекс вины каждого игрока, цена смертей, главные ошибки и переломные моменты матча.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0c11'/%3E%3Cpath d='M7 23V9h4l5 7 5-7h4v14h-4v-7l-5 7-5-7v7z' fill='%23d9a441'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -50,6 +50,9 @@
   </header>
 
   <main id="app">
+    <div class="static-note" id="static-note" hidden>
+      <b>GitHub Pages · демо-версия.</b> Доступны готовые разборы: 9078468447, 9078923915, 9074607307. Полный разбор нового матча по ID и загрузка реплея — при локальном запуске сервера.
+    </div>
     <section class="landing" id="landing">
       <div class="landing-hero">
         <div class="eyebrow"><span class="pulse"></span> DOTA 2 · REPLAY INTELLIGENCE</div>
@@ -170,7 +173,8 @@
 
   <div class="toast" id="toast" hidden></div>
 
-  <script src="/charts.js"></script>
-  <script src="/app.js"></script>
+  <script>window.OTA_STATIC = true;</script>
+  <script src="charts.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -32,6 +32,7 @@
   };
 
   const TEAM = { radiant: "Radiant", dire: "Dire" };
+  const STATIC = Boolean(window.OTA_STATIC);
 
   function initials(name) {
     return String(name || "?").replace(/[^A-Za-zА-Яа-я0-9]/g, "").slice(0, 2).toUpperCase() || "?";
@@ -192,7 +193,7 @@
         </pattern>
       </defs>
       <rect width="100" height="100" fill="#080b10"/>
-      <image href="/img/dota_map.webp" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice" opacity=".78"/>
+      <image href="img/dota_map.webp" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice" opacity=".78"/>
       <rect width="100" height="100" fill="rgba(5,8,12,.22)"/>
       <rect width="100" height="100" fill="url(#mapGrid)"/>`;
   }
@@ -242,7 +243,7 @@
       .map(
         (w) => `<g class="ward-marker ${w.type} ${w.team}" transform="translate(${norm(w.x)},${normY(w.y)})" data-time="${w.time}">
           <circle class="ward-ring" r="${w.type === "observer" ? 2.9 : 2.5}"></circle>
-          <image href="/img/items/ward_${w.type}.png" x="-2.1" y="-2.1" width="4.2" height="4.2" preserveAspectRatio="xMidYMid slice"></image>
+          <image href="img/items/ward_${w.type}.png" x="-2.1" y="-2.1" width="4.2" height="4.2" preserveAspectRatio="xMidYMid slice"></image>
           <title>${esc(w.time_label)} · ${w.type === "observer" ? "обс" : "сентри"} · ${esc(w.hero)}${w.duration ? " · " + Math.round(w.duration / 60) + " мин" : ""}</title>
         </g>`
       )
@@ -956,6 +957,10 @@
   }
 
   async function startReplay(id) {
+    if (STATIC) {
+      showError("Это статическая демонстрация на GitHub Pages. Полный разбор по ID с загрузкой реплея работает при локальном запуске сервера.");
+      return;
+    }
     stopPolling();
     state.replayId = id;
     state.pollFailures = 0;
@@ -1019,7 +1024,7 @@
   async function loadDemo(updateHash) {
     showLoading();
     try {
-      const response = await fetch("/api/demo");
+      const response = await fetch(STATIC ? "data/demo.json" : "/api/demo");
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Не удалось загрузить демо");
       setData(payload.analysis, { hash: updateHash === false ? null : "#demo" });
@@ -1035,9 +1040,16 @@
     }
     showLoading();
     try {
-      const response = await fetch(`/api/analyze?id=${encodeURIComponent(id)}`);
+      const url = STATIC ? `data/matches/${id}.json` : `/api/analyze?id=${encodeURIComponent(id)}`;
+      const response = await fetch(url);
+      if (STATIC && !response.ok) {
+        throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
+      }
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
+        if (STATIC) {
+          throw new Error("В статической версии доступны только готовые разборы: 9078468447, 9078923915, 9074607307. Полный парс по ID — при локальном запуске.");
+        }
         if (payload.code === "unparsed") {
           await startReplay(id);
           return;
@@ -1052,6 +1064,10 @@
 
   async function loadFile(file) {
     if (!file) return;
+    if (STATIC) {
+      showError("В статической версии на GitHub Pages загрузка JSON недоступна. Запустите сервер локально для полного разбора.");
+      return;
+    }
     if (!/\.json$/i.test(file.name)) {
       showError("Нужен JSON матча. Файл .dem загружать не нужно — вставьте ID матча, и сервер сам скачает и распарсит реплей.");
       return;
@@ -1073,7 +1089,7 @@
 
   async function loadHistory() {
     try {
-      const response = await fetch("/api/history");
+      const response = await fetch(STATIC ? "data/history.json" : "/api/history");
       const payload = await response.json();
       const items = (payload.items || []).slice(0, 4);
       const block = $("#history-block");
@@ -1182,6 +1198,10 @@
     });
   }
 
+  if (STATIC) {
+    const note = $("#static-note");
+    if (note) note.hidden = false;
+  }
   bindChrome();
   loadHistory();
   route();
