@@ -263,9 +263,9 @@ def _replay_worker(match_id: int) -> None:
                 code="download_failed",
             ) from exc
 
-        _set_job(match_id, stage="parse", progress=38, message="Парсим реплей — обычно это 1–3 минуты")
+        _set_job(match_id, stage="parse", progress=38, message="Парсим реплей — обычно это 2–10 минут")
         with _parse_lock:
-            _set_job(match_id, stage="parse", progress=40, message="Парсим реплей — обычно это 1–3 минуты")
+            _set_job(match_id, stage="parse", progress=40, message="Парсим реплей — обычно это 2–10 минут")
             parsed = gem.parse(replay_path)
 
         _set_job(match_id, stage="stats", progress=88, message="Считаем экономику, смерти и переломные моменты")
